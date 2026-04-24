@@ -82,7 +82,7 @@ The model performance is visualized using:
 
 | File | Description |
 |---|---|
-| `confusion_matrix.png` | Confusion matrix visualization |
+| ![Confusion Matrix](confusion_matrix.png)| Confusion matrix visualization |
 
 
 ---
