@@ -23,25 +23,7 @@ curl -X POST https://sql-injection-detector-zn3b.onrender.com/predict \
   -d "{\"query\": \"' OR '1'='1\"}"
 ```
 
-Example Python integration:
-
-```python
-import requests
-
-API_URL = "https://sql-injection-detector-zn3b.onrender.com/predict"
-
-response = requests.post(
-    API_URL,
-    json={"query": user_input}
-)
-
-result = response.json()
-
-if not result["allowed"]:
-    raise Exception("Blocked: Potential SQL injection detected")
-```
-
-The API is designed to be used by backend systems. The React UI in this repository is only a demo/testing interface. In production, another backend service would call `/predict` before processing risky user input.
+The API is designed to be used by backend systems. The React UI in this repository is only a demo/testing interface.
 
 ## System Architecture
 
@@ -80,15 +62,23 @@ Response:
 }
 ```
 
+| Field | Description |
+|---|---|
+| `query` | Original input sent to the API |
+| `score` | Decision score from the ML model |
+| `prediction` | Human-readable classification: `Normal` or `Malicious` |
+| `label` | Numeric class label: `0` for Normal, `1` for Malicious |
+| `allowed` | Final allow/block decision returned by the API |
+
 ## Backend Integration Example
 
 ```python
 import requests
 
 API_URL = "https://sql-injection-detector-zn3b.onrender.com/predict"
-query = "' OR '1'='1"
+user_input = "' OR '1'='1"
 
-response = requests.post(API_URL, json={"query": query}, timeout=10)
+response = requests.post(API_URL, json={"query": user_input}, timeout=10)
 response.raise_for_status()
 result = response.json()
 
@@ -97,6 +87,8 @@ if not result["allowed"]:
 else:
     print("Allowed request:", result)
 ```
+
+In production, another backend service would call `/predict` before processing risky user input.
 
 ## Demo Interface
 
