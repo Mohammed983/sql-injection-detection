@@ -1,6 +1,6 @@
 # SQL Injection Detection
 
-> A deployed, containerized ML service that detects and blocks SQL injection attempts in real time.
+A deployed, containerized ML service that detects and blocks SQL injection attempts in real time.
 
 
 ## Overview
