@@ -7,13 +7,15 @@ import os
 from pathlib import Path
 
 import joblib
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 
 MODEL_PATH = Path(os.getenv("MODEL_PATH", "sql_injection_svm_model.joblib"))
 THRESHOLD = float(os.getenv("THRESHOLD", "-0.40"))
+MAX_QUERY_LENGTH = int(os.getenv("MAX_QUERY_LENGTH", "5000"))
+API_KEY = os.getenv("API_KEY")
 ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
@@ -93,7 +95,9 @@ def detailed_health_check() -> dict[str, object]:
 
 
 @app.post("/predict")
-def predict(request: QueryRequest) -> dict[str, object]:
+def predict(
+    request: QueryRequest, x_api_key: str | None = Header(default=None)
+) -> dict[str, object]:
     """Score a query and classify it with the fixed decision threshold."""
     if model is None:
         detail = model_load_error or (
@@ -101,9 +105,14 @@ def predict(request: QueryRequest) -> dict[str, object]:
         )
         raise HTTPException(status_code=503, detail=detail)
 
+    if API_KEY is not None and x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     query = request.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Query must not be empty.")
+    if len(query) > MAX_QUERY_LENGTH:
+        raise HTTPException(status_code=400, detail="Query too long.")
 
     score = float(model.decision_function([query])[0])
     label = int(score >= THRESHOLD)
