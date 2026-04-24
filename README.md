@@ -1,6 +1,7 @@
 # SQL Injection Detection
 
-Real-time ML-powered SQL injection detection API with decision-based blocking.
+> A deployed, containerized ML service that detects and blocks SQL injection attempts in real time.
+
 
 ## Overview
 
