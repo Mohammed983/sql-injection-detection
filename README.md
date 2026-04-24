@@ -1,68 +1,134 @@
 # SQL Injection Detection
 
-SQL Injection Detection is a machine learning system that classifies SQL queries as **normal** or **malicious**. The model is designed with a security-first mindset, prioritizing the detection of malicious inputs while maintaining a low false positive rate.
-
----
+Real-time ML-powered SQL injection detection API with decision-based blocking.
 
 ## Overview
 
-This project implements a production-style machine learning pipeline for detecting SQL injection attacks. Given a raw SQL query, the system predicts whether the query is benign or potentially malicious.
+This project provides a real-time machine learning API that classifies SQL queries as **Normal** or **Malicious** and returns an **allow/block** decision. It is designed as a backend security layer that can evaluate incoming SQL-like input before it reaches sensitive application logic or downstream systems.
 
-The system focuses on:
-- High recall for malicious queries (minimizing missed attacks)
-- Controlled false positives for practical usability
-- Reproducible and deployable ML pipeline design
+The system combines a trained scikit-learn model, a FastAPI inference service, Docker deployment, and a public Render deployment. A React frontend is included for demonstration and testing, but the production focus is the backend API.
 
----
+## Quick Start
+
+Try the live API:
+
+- Swagger UI: [https://sql-injection-detector-zn3b.onrender.com/docs](https://sql-injection-detector-zn3b.onrender.com/docs)
+- Health Check: [https://sql-injection-detector-zn3b.onrender.com/health](https://sql-injection-detector-zn3b.onrender.com/health)
+
+Example `curl` request:
+
+```bash
+curl -X POST https://sql-injection-detector-zn3b.onrender.com/predict \
+  -H "Content-Type: application/json" \
+  -d "{\"query\": \"' OR '1'='1\"}"
+```
+
+Example Python integration:
+
+```python
+import requests
+
+API_URL = "https://sql-injection-detector-zn3b.onrender.com/predict"
+
+response = requests.post(
+    API_URL,
+    json={"query": user_input}
+)
+
+result = response.json()
+
+if not result["allowed"]:
+    raise Exception("Blocked: Potential SQL injection detected")
+```
+
+The API is designed to be used by backend systems. The React UI in this repository is only a demo/testing interface. In production, another backend service would call `/predict` before processing risky user input.
+
+## System Architecture
+
+`Client / Backend -> FastAPI API -> ML Model -> Decision (allow/block)`
+
+The FastAPI service loads the trained model, computes a decision score for each request, and applies a fixed threshold to determine whether the query should be treated as malicious. The React UI is only a demo/testing interface for easier local and public testing.
+
+## Live API
+
+| Endpoint | Link |
+|---|---|
+| Swagger UI | [https://sql-injection-detector-zn3b.onrender.com/docs](https://sql-injection-detector-zn3b.onrender.com/docs) |
+| Health Check | [https://sql-injection-detector-zn3b.onrender.com/health](https://sql-injection-detector-zn3b.onrender.com/health) |
+
+## API Usage
+
+### `POST /predict`
+
+Request:
+
+```json
+{
+  "query": "' OR '1'='1"
+}
+```
+
+Response:
+
+```json
+{
+  "query": "' OR '1'='1",
+  "score": 2.13,
+  "prediction": "Malicious",
+  "label": 1,
+  "allowed": false
+}
+```
+
+## Backend Integration Example
+
+```python
+import requests
+
+API_URL = "https://sql-injection-detector-zn3b.onrender.com/predict"
+query = "' OR '1'='1"
+
+response = requests.post(API_URL, json={"query": query}, timeout=10)
+response.raise_for_status()
+result = response.json()
+
+if not result["allowed"]:
+    print("Blocked request:", result)
+else:
+    print("Allowed request:", result)
+```
+
+## Demo Interface
+
+The project includes a React frontend as an optional demo UI. It allows users to enter a query, view the prediction, inspect the decision score, and see the final allow/block result in a simple interface.
+
+In production, the API is intended to run as a backend security layer, not as an end-user UI.
 
 ## Features
 
-### SQL Injection Detection
+- Real-time API-based inference
+- Normal/Malicious classification
+- Decision score
+- Allow/block output
+- Dockerized deployment
+- Health check endpoint
 
-The model takes raw SQL queries and classifies them into:
+## Machine Learning Pipeline
 
-| Label | Description |
+| Component | Configuration |
 |---|---|
-| `0` | Normal query |
-| `1` | Malicious query |
-
-The system is optimized to detect subtle injection patterns such as:
-- Tautologies (`' OR '1'='1`)
-- Comment-based attacks (`--`, `#`)
-- Data extraction (`UNION SELECT`)
-- Query manipulation patterns
-
----
-
-### Machine Learning Pipeline
-
-The detection system is built using a clean and modular pipeline:
-
-| Component | Description |
-|---|---|
-| Feature Extraction | Character-level TF-IDF (n-grams 2–6) |
-| Model | Linear Support Vector Machine (`LinearSVC`) |
-| Class Handling | Weighted classes to prioritize malicious detection |
-| Threshold Tuning | Custom decision threshold (`-0.40`) |
+| Feature Extraction | Character-level TF-IDF n-grams 2–6 |
+| Model | LinearSVC |
+| Class Handling | `class_weight={0:1, 1:2}` |
+| Threshold | `-0.40` |
 | Validation | 5-fold stratified cross-validation |
 
----
+## Threshold Optimization
 
-### Threshold Optimization
+`score >= -0.40 -> Malicious`  
+`score < -0.40 -> Normal`
 
-Instead of relying on default predictions, the model uses a custom decision threshold:
-
-`score >= -0.40 → Malicious`  
-`score < -0.40 → Normal`
-
-This allows fine-grained control over:
-
-| Objective | Description |
-|---|---|
-| False Negatives | Missed malicious queries |
-| False Positives | Incorrectly flagged normal queries |
-
----
+This threshold is used to reduce false negatives while keeping false positives at a reasonable level for a security-sensitive deployment.
 
 ## Evaluation Metrics
 
@@ -74,73 +140,56 @@ This allows fine-grained control over:
 | False Negatives | 7 |
 | False Positives | 16 |
 
----
-
 ## Confusion Matrix
 
-The model performance is visualized using:
+![Confusion Matrix](confusion_matrix.png)
 
-| File | Description |
-|---|---|
-| ![Confusion Matrix](confusion_matrix.png)| Confusion matrix visualization |
+## Local Usage
 
-
----
-
-## Usage
-
-### Train and Evaluate
-
-Run the pipeline on the dataset:
+Train the model:
 
 ```bash
 python sql_injection_pipeline.py --data Modified_SQL_Dataset.csv
 ```
----
 
-### Optional Flags (Usage Examples)
+Build and run with Docker:
 
-| Command | Description |
-|---|---|
-| `python sql_injection_pipeline.py --data Modified_SQL_Dataset.csv --no-show` | Disable confusion matrix display |
-| `python sql_injection_pipeline.py --data Modified_SQL_Dataset.csv --verbose` | Show detailed logs (cross-validation, threshold tuning, error analysis) |
-| `python sql_injection_pipeline.py --data Modified_SQL_Dataset.csv --no-show --verbose` | Full usage with all options |
-
-## Output
-
-| Output | Description |
-|---|---|
-| Terminal Metrics | Final evaluation results |
-| `confusion_matrix.png` | Performance visualization |
-| `sql_injection_svm_model.joblib` | Saved trained model |
-
----
+```bash
+docker build -t sql-injection-api .
+docker run -p 8000:8000 sql-injection-api
+```
 
 ## Tech Stack
 
-| Layer | Technology |
+| Category | Technology |
 |---|---|
 | Language | Python |
 | ML Library | scikit-learn |
+| API Framework | FastAPI |
+| Containerization | Docker |
+| Deployment | Render |
+| Frontend Demo | React |
 | Data Processing | pandas |
 | Visualization | matplotlib |
 | Model Persistence | joblib |
-
----
 
 ## Design Decisions
 
 | Decision | Reason |
 |---|---|
-| Security-first optimization | Prioritize detecting malicious queries |
-| Threshold tuning | Improve control over classification trade-offs |
-| Character-level TF-IDF | Capture SQL patterns effectively |
-| Linear SVM | High performance with low complexity |
+| Security-first optimization | Reduce false negatives |
+| Threshold tuning | Control detection sensitivity |
+| Character-level TF-IDF | Capture SQL attack patterns |
+| Linear SVM | Efficient and effective for sparse text features |
+| Backend-first production design | API acts as a security service, UI is only demo |
 
----
+## Important Security Note
+
+This project is an additional detection layer and does not replace parameterized queries, ORM protections, or input validation.
 
 ## Future Work
 
-- Deploy as an API for real-time query validation  
-- Integrate with web applications for input filtering  
-- Expand the dataset with real-world attack patterns  
+- API authentication and rate limiting
+- Model versioning
+- Backend middleware integration
+- Expanded real-world attack dataset
