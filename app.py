@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from pathlib import Path
 
 import joblib
@@ -16,6 +17,7 @@ MODEL_PATH = Path(os.getenv("MODEL_PATH", "sql_injection_svm_model.joblib"))
 THRESHOLD = float(os.getenv("THRESHOLD", "-0.40"))
 MAX_QUERY_LENGTH = int(os.getenv("MAX_QUERY_LENGTH", "5000"))
 API_KEY = os.getenv("API_KEY")
+SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,63}$")
 ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
@@ -99,12 +101,6 @@ def predict(
     request: QueryRequest, x_api_key: str | None = Header(default=None)
 ) -> dict[str, object]:
     """Score a query and classify it with the fixed decision threshold."""
-    if model is None:
-        detail = model_load_error or (
-            "Model is not available. Train the model before making predictions."
-        )
-        raise HTTPException(status_code=503, detail=detail)
-
     if API_KEY is not None and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -113,6 +109,23 @@ def predict(
         raise HTTPException(status_code=400, detail="Query must not be empty.")
     if len(query) > MAX_QUERY_LENGTH:
         raise HTTPException(status_code=400, detail="Query too long.")
+
+    if SAFE_IDENTIFIER_PATTERN.fullmatch(query):
+        logger.info("prediction=Normal score=null allowed=True rule_based=True")
+        return {
+            "query": request.query,
+            "score": None,
+            "prediction": "Normal",
+            "label": 0,
+            "allowed": True,
+            "rule_based": True,
+        }
+
+    if model is None:
+        detail = model_load_error or (
+            "Model is not available. Train the model before making predictions."
+        )
+        raise HTTPException(status_code=503, detail=detail)
 
     score = float(model.decision_function([query])[0])
     label = int(score >= THRESHOLD)

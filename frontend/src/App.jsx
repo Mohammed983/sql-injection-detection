@@ -17,6 +17,8 @@ function ResultCard({ result }) {
   const reason = isMalicious
     ? "Reason: Query contains patterns commonly associated with SQL injection."
     : "Reason: Query does not strongly match known SQL injection patterns.";
+  const decisionScore =
+    typeof result.score === "number" ? result.score.toFixed(4) : "N/A";
 
   return (
     <section className={`result-card ${isMalicious ? "danger" : "safe"}`}>
@@ -32,7 +34,7 @@ function ResultCard({ result }) {
         </div>
         <div>
           <span className="result-label">Decision Score</span>
-          <strong>{result.score.toFixed(4)}</strong>
+          <strong>{decisionScore}</strong>
           <small className="result-help">
             Higher scores indicate higher malicious risk.
           </small>
