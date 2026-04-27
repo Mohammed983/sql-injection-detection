@@ -28,9 +28,19 @@ The API is designed to be used by backend systems. The React UI in this reposito
 
 ## System Architecture
 
-`Client / Backend -> FastAPI API -> ML Model -> Decision (allow/block)`
+```text
+Client / Backend
+    ↓
+FastAPI API
+    ↓
+Rule-based Safe Identifier Filter
+    ↓
+TF-IDF + Linear SVM Model
+    ↓
+Decision (allow/block)
+```
 
-The FastAPI service loads the trained model, computes a decision score for each request, and applies a fixed threshold to determine whether the query should be treated as malicious. The React UI is only a demo/testing interface for easier local and public testing.
+The FastAPI service first checks for simple safe identifiers, then sends all other inputs to the trained model. The model computes a decision score and applies a fixed threshold to determine whether the query should be treated as malicious. The React UI is only a demo/testing interface for easier local and public testing.
 
 ## Live API
 
@@ -66,7 +76,7 @@ Response:
 | Field | Description |
 |---|---|
 | `query` | Original input sent to the API |
-| `score` | Decision score from the ML model |
+| `score` | Decision score from the ML model; can be `null` when handled by the safe identifier pre-filter |
 | `prediction` | Human-readable classification: `Normal` or `Malicious` |
 | `label` | Numeric class label: `0` for Normal, `1` for Malicious |
 | `allowed` | Final allow/block decision returned by the API |
@@ -103,6 +113,7 @@ In production, the API is intended to run as a backend security layer, not as an
 - Normal/Malicious classification
 - Decision score
 - Allow/block output
+- Rule-based safe identifier filtering to reduce false positives
 - Dockerized deployment
 - Health check endpoint
 
@@ -122,6 +133,32 @@ In production, the API is intended to run as a backend security layer, not as an
 `score < -0.40 -> Normal`
 
 This threshold is used to reduce false negatives while keeping false positives at a reasonable level for a security-sensitive deployment.
+
+## False Positive Reduction
+
+During testing, simple safe identifiers such as `username`, `password`, `name`, `user_id`, and `email` were incorrectly classified as malicious.
+
+To fix this without weakening the ML model or increasing false negatives, a rule-based pre-filter was added before the ML model.
+
+Safe identifier pattern:
+
+`^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`
+
+If the input matches this pattern, it is classified as `Normal` immediately and returned with `score: null`.
+
+This allows the system to keep the aggressive threshold (-0.40) while reducing false positives on normal application inputs.
+
+### Before vs After
+
+| Input | Before (ML Only) | After (Rule + ML) |
+|---|---|---|
+| username | Malicious | Normal |
+| password | Malicious | Normal |
+| name | Malicious | Normal |
+| user_id | Malicious | Normal |
+| email | Malicious | Normal |
+| ' OR '1'='1 | Malicious | Malicious |
+| admin' -- | Malicious | Malicious |
 
 ## Evaluation Metrics
 
@@ -172,6 +209,7 @@ docker run -p 8000:8000 sql-injection-api
 |---|---|
 | Security-first optimization | Reduce false negatives |
 | Threshold tuning | Control detection sensitivity |
+| Rule + ML hybrid design | Reduces false positives while keeping the security-focused threshold |
 | Character-level TF-IDF | Capture SQL attack patterns |
 | Linear SVM | Efficient and effective for sparse text features |
 | Backend-first production design | API acts as a security service, UI is only demo |
